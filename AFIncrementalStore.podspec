@@ -11,6 +11,7 @@ Pod::Spec.new do |s|
 
   s.source       = { :git => "https://github.com/Nitewriter/AFIncrementalStore.git", :tag => "0.6.0" }
   s.source_files = 'AFIncrementalStore/*.{h,m}'
+  s.resource = 'AFIncrementalStore.podspec'
 
   s.framework  = 'CoreData'
 
@@ -19,4 +20,5 @@ Pod::Spec.new do |s|
   s.dependency 'AFNetworking', '~> 2.0'
   s.dependency 'InflectorKit'
   s.dependency 'TransformerKit'
+  s.dependency 'MagicalRecord', '~> 2.2'
 end
