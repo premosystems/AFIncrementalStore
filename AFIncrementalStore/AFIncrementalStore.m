@@ -24,6 +24,7 @@
 
 #import <AFNetworking/AFNetworking.h>
 #import "AFIncrementalStore.h"
+#import "CoreData+MagicalRecord.h"
 
 #define kAFChildContextConcurrencyType NSMainQueueConcurrencyType
 
@@ -70,10 +71,15 @@ inline NSString * AFResourceIdentifierFromReferenceObject(id referenceObject) {
 
 static inline void AFSaveManagedObjectContextOrThrowInternalConsistencyException(NSManagedObjectContext *managedObjectContext) {
     NSError *error = nil;
+    
+    [managedObjectContext MR_saveToPersistentStoreAndWait];
+    
+    /*
     if (![managedObjectContext save:&error]) {
         NSLog(@"AFSaveManagedObjectContextOrThrowInternalConsistencyException: %@\n%@",[error localizedDescription],error.userInfo);
         @throw [NSException exceptionWithName:NSInternalInconsistencyException reason:[error localizedFailureReason] userInfo:[NSDictionary dictionaryWithObject:error forKey:NSUnderlyingErrorKey]];
     }
+     */
 }
 
 @interface NSManagedObject (_AFIncrementalStore)
@@ -483,7 +489,15 @@ withAttributeAndRelationshipValuesFromManagedObject:(NSManagedObject *)managedOb
             for (NSManagedObjectID *backingObjectID in backingObjectIDs) {
                 NSManagedObject *backingObject = [backingContext objectWithID:backingObjectID];
                 NSString *resourceID = [backingObject valueForKey:kAFIncrementalStoreResourceIdentifierAttributeName];
-                [managedObjectIDs addObject:[self objectIDForEntity:fetchRequest.entity withResourceIdentifier:resourceID]];
+                
+                NSManagedObjectID *objectId = [self objectIDForEntity:fetchRequest.entity withResourceIdentifier:resourceID];
+                
+                //NSAssert(objectId,@"ObjectId must assert!");
+                
+                if (objectId) {
+                    [managedObjectIDs addObject:objectId];
+                }
+                
             }
             
             return managedObjectIDs;
@@ -517,7 +531,7 @@ withAttributeAndRelationshipValuesFromManagedObject:(NSManagedObject *)managedOb
                     [backingObject.managedObjectContext obtainPermanentIDsForObjects:[NSArray arrayWithObject:backingObject] error:nil];
                     [backingObject setValue:resourceIdentifier forKey:kAFIncrementalStoreResourceIdentifierAttributeName];
                     [self updateBackingObject:backingObject withAttributeAndRelationshipValuesFromManagedObject:insertedObject];
-                    [backingContext save:nil];
+                    [backingContext MR_saveOnlySelfAndWait];
                 }];
                 
                 [insertedObject willChangeValueForKey:@"objectID"];
@@ -551,7 +565,7 @@ withAttributeAndRelationshipValuesFromManagedObject:(NSManagedObject *)managedOb
 
                         [backingObject setValue:resourceIdentifier forKey:kAFIncrementalStoreResourceIdentifierAttributeName];
                         [self updateBackingObject:backingObject withAttributeAndRelationshipValuesFromManagedObject:insertedObject];
-                        [backingContext save:nil];
+                        [backingContext MR_saveOnlySelfAndWait];
                     }];
 
                     [insertedObject willChangeValueForKey:@"objectID"];
@@ -602,7 +616,7 @@ withAttributeAndRelationshipValuesFromManagedObject:(NSManagedObject *)managedOb
                 [backingContext performBlockAndWait:^{
                     NSManagedObject *backingObject = [backingContext existingObjectWithID:backingObjectID error:nil];
                     [self updateBackingObject:backingObject withAttributeAndRelationshipValuesFromManagedObject:updatedObject];
-                    [backingContext save:nil];
+                    [backingContext MR_saveOnlySelfAndWait];
                 }];
                 continue;
             }
@@ -616,7 +630,7 @@ withAttributeAndRelationshipValuesFromManagedObject:(NSManagedObject *)managedOb
                     [backingContext performBlockAndWait:^{
                         NSManagedObject *backingObject = [backingContext existingObjectWithID:backingObjectID error:nil];
                         [self updateBackingObject:backingObject withAttributeAndRelationshipValuesFromManagedObject:updatedObject];
-                        [backingContext save:nil];
+                        [backingContext MR_saveOnlySelfAndWait];
                     }];
 
                     [context refreshObject:updatedObject mergeChanges:YES];
@@ -642,7 +656,7 @@ withAttributeAndRelationshipValuesFromManagedObject:(NSManagedObject *)managedOb
                 [backingContext performBlockAndWait:^{
                     NSManagedObject *backingObject = [backingContext existingObjectWithID:backingObjectID error:nil];
                     [backingContext deleteObject:backingObject];
-                    [backingContext save:nil];
+                    [backingContext MR_saveOnlySelfAndWait];
                 }];
                 continue;
             }
@@ -651,7 +665,7 @@ withAttributeAndRelationshipValuesFromManagedObject:(NSManagedObject *)managedOb
                 [backingContext performBlockAndWait:^{
                     NSManagedObject *backingObject = [backingContext existingObjectWithID:backingObjectID error:nil];
                     [backingContext deleteObject:backingObject];
-                    [backingContext save:nil];
+                    [backingContext MR_saveOnlySelfAndWait];
                 }];
                 dispatch_group_leave(group);
             } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
